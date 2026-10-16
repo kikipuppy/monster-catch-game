@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>像素精灵 · 捕捉 / 养成 / 对战</title>
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  --bg:#0a0d1a;
+  --surface:#131829;
+  --surface2:#1b2137;
+  --edge:#3b4a86;
+  --edge-soft:#252b45;
+  --txt:#e9edff;
+  --dim:#8d97c4;
+  --accent:#4a86ff;
+  --p1:#3f7cff;
+  --p2:#ff5c6c;
+  --coin:#ffd23f;
+  --hp:#43d17a;
+  --warn:#ffcc4d;
+  --bad:#ff5c5c;
+  --judge:#ffab3d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:radial-gradient(circle at 50% -10%,#1b2445 0%,#0a0d1a 55%);
+  color:var(--txt);
+  font-family:"Courier New",Consolas,"Lucida Console",monospace;
+  letter-spacing:.5px;user-select:none;
+  display:flex;align-items:center;justify-content:center;
+}
+#app{position:relative;width:900px;height:660px;transform-origin:center center}
+/* ============ 通用 ============ */
+.screen{position:absolute;inset:0;display:none}
+.screen.active{display:block}
+.panel{background:var(--surface);border:3px solid var(--edge);box-shadow:0 0 0 3px #05070f,6px 6px 0 rgba(0,0,0,.45)}
+.btn{
+  font-family:inherit;font-size:14px;letter-spacing:1px;color:var(--txt);
+  background:var(--surface2);border:3px solid var(--edge);padding:8px 14px;cursor:pointer;
+  transition:transform .08s steps(2),background .12s;
+}
+.btn:hover:not(:disabled){background:#2b3563;transform:translateY(-2px)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.32;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:#9dbcff;color:#06102b;font-weight:700}
+.btn.primary:hover:not(:disabled){background:#6a9dff}
+.btn.small{font-size:12px;padding:5px 9px;border-width:2px}
+.btn.big{font-size:17px;padding:13px 30px}
+.tag{font-size:11px;padding:2px 6px;border:2px solid var(--edge-soft);color:var(--dim)}
+/* ============ 主菜单 / 结算 ============ */
+.menu-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}
+.menu-inner h1{font-size:62px;line-height:1;color:#fff;text-shadow:4px 4px 0 var(--accent),8px 8px 0 #05070f}
+.menu-inner h2{font-size:42px;color:#fff;text-shadow:4px 4px 0 #05070f}
+.menu-inner .sub{color:var(--dim);font-size:15px;letter-spacing:6px}
+.menu-btns{display:flex;gap:14px;margin-top:6px}
+.sprite-strip{display:flex;gap:10px;margin-top:8px}
+.sprite-strip canvas{background:rgba(74,134,255,.07);border:2px solid var(--edge-soft);animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.hint{color:var(--dim);font-size:12px}
+/* ============ 操作说明 ============ */
+.help-wrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:830px;max-height:610px;overflow:auto;padding:22px 26px}
+.help-wrap h3{font-size:22px;margin-bottom:12px;color:#fff}
+.help-wrap h4{font-size:15px;margin:16px 0 8px;color:var(--accent)}
+.help-grid{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13px}
+.key{display:inline-block;border:2px solid var(--edge);background:var(--surface2);padding:1px 7px;font-size:12px;margin-right:4px}
+.help-note{font-size:12px;color:var(--dim);line-height:1.75;margin-top:6px}
+/* ============ 顶部条 ============ */
+#hud{height:132px;display:grid;grid-template-columns:1fr 330px 1fr;gap:10px;padding:8px;background:#0c1122;border-bottom:3px solid var(--edge-soft)}
+.pcard{height:100%;padding:8px 10px;display:flex;flex-direction:column;gap:6px;background:var(--surface);border:3px solid var(--edge-soft);box-shadow:0 0 0 3px #05070f}
+.pcard.active{border-color:var(--accent);box-shadow:0 0 0 3px #05070f,0 0 14px rgba(74,134,255,.6)}
+.pcard .prow{display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.pcard .prow.small{font-size:12px;color:var(--dim)}
+.pcard .prow.small b{color:var(--coin);font-weight:400}
+.pname{font-size:16px;color:#fff}
+.p1 .pname{color:var(--p1)} .p2 .pname{color:var(--p2)}
+.hearts{display:flex;gap:4px}
+.heart{width:15px;height:15px;background:var(--p2);box-shadow:inset 0 0 0 2px #05070f}
+.heart.off{background:#2b3149}
+.team{display:flex;gap:5px;flex:1;align-items:center;overflow:hidden}
+.tmini{position:relative}
+.tmini canvas{width:30px;height:30px;image-rendering:pixelated;border:2px solid #2b3149;background:#0f1526}
+.tmini.fainted canvas{filter:grayscale(1) brightness(.5)}
+.tmini .lv{position:absolute;right:-3px;bottom:-4px;font-size:10px;color:#fff;background:#05070f;padding:0 2px}
+.hud-mid{display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+.hud-mid #msg{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;color:var(--warn);background:var(--surface);border:3px solid var(--edge-soft);padding:6px;line-height:1.5}
+.hud-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hud-btns .btn{font-size:12px;padding:6px 4px;border-width:2px}
+.stagebar{font-size:12px;color:var(--dim);text-align:center}
+.stagebar b{color:var(--accent);font-weight:400}
+#stage{position:relative;width:900px;height:520px}
+#cv{display:block;background:#0b1020}
+/* ============ 养成环节 ============ */
+#levelbody{position:absolute;inset:0;display:flex;flex-direction:column;padding:14px 18px;gap:10px}
+.lv-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 14px}
+.lv-head .t{font-size:16px;color:#fff}
+.lv-head .timer{font-size:20px;color:var(--warn)}
+.lv-head .exp{font-size:13px;color:var(--dim)}
+.lv-head .exp b{color:var(--coin);font-weight:400;font-size:17px}
+.lv-list{flex:1;overflow:auto;display:flex;flex-direction:column;gap:9px;padding-right:4px}
+.trow{display:grid;grid-template-columns:52px 1fr 232px 176px;align-items:center;gap:12px;background:var(--surface2);border:3px solid var(--edge-soft);padding:9px 12px}
+.lvbar{display:flex;align-items:center;gap:8px}
+.lvsegs{display:flex;gap:4px}
+.lvsegs i{display:block;width:24px;height:16px;background:#0a0e1e;border:2px solid #05070f}
+.lvsegs i.on{background:var(--hp)}
+.sq{width:30px;height:30px;flex:0 0 30px;padding:0;font-family:inherit;font-size:19px;line-height:1;color:var(--txt);background:var(--surface2);border:3px solid var(--edge);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .08s steps(2),background .12s}
+.sq:hover:not(:disabled){background:#2b3563;transform:translateY(-2px)}
+.sq:disabled{opacity:.3;cursor:not-allowed}
+.trow canvas{width:46px;height:46px;image-rendering:pixelated}
+.trow .tname{font-size:14px}
+.trow .tname small{color:var(--dim);font-size:11px}
+.trow .stat{font-size:12px;color:var(--dim);line-height:1.6}
+.trow .stat b{color:var(--txt);font-weight:400}
+.lv-tip{font-size:11px;color:var(--dim);line-height:1.7}
+.lvmsg{min-height:36px;display:flex;align-items:center;font-size:13px;color:var(--warn);background:var(--surface);border:3px solid var(--edge-soft);padding:6px 12px}
+.bar{height:14px;background:#0a0e1e;border:2px solid #05070f;position:relative}
+.bar i{display:block;height:100%;background:var(--hp);transition:width .18s steps(6)}
+.bar i.mid{background:var(--warn)} .bar i.low{background:var(--bad)}
+/* ============ 对战环节 ============ */
+#battlebody{position:absolute;inset:0;display:flex;flex-direction:column;padding:14px 18px;gap:10px}
+.bt-head{display:flex;justify-content:space-between;align-items:center}
+.bt-head h3{font-size:19px;color:#fff}
+.turnbar{text-align:center;font-size:15px;color:var(--warn);height:20px}
+.arena{display:grid;grid-template-columns:1fr 190px 1fr;gap:14px;flex:1;min-height:0}
+.fighter{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:10px}
+.fighter canvas.big{width:96px;height:96px;image-rendering:pixelated}
+.fighter .fname{font-size:14px}
+.fighter.side1 .fname{color:var(--p1)} .fighter.side2 .fname{color:var(--p2)}
+.staminarow{display:flex;gap:4px;align-items:center}
+.logbox{background:#0a0e1e;border:2px solid #05070f;padding:8px;overflow:hidden;font-size:11px;color:var(--dim);line-height:1.65}
+.logbox .good{color:var(--hp)}.logbox .bad{color:var(--bad)}.logbox .sys{color:var(--warn)}
+.bench{display:flex;gap:8px;justify-content:center;margin-top:2px}
+.rcard{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 5px;background:var(--surface2);border:2px solid var(--edge-soft);width:84px;cursor:pointer}
+.rcard:hover{transform:translateY(-2px)}
+.rcard canvas{width:34px;height:34px;image-rendering:pixelated}
+.rcard.sel{border-color:var(--accent);box-shadow:0 0 8px rgba(74,134,255,.5)}
+.rcard.dead{filter:grayscale(1) brightness(.45);cursor:not-allowed;opacity:.6}
+.bt-actions{display:flex;gap:10px;justify-content:center;align-items:center}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== 主菜单 ===== -->
+  <div id="scr-menu" class="screen active">
+    <div class="menu-inner">
+      <h1>像素精灵</h1>
+      <p class="sub">捕捉 · 养成 · 对战</p>
+      <div class="sprite-strip" id="strip"></div>
+      <div class="menu-btns">
+        <button class="btn primary big" data-act="start">开始一局比赛</button>
+        <button class="btn big" data-act="help">操作说明</button>
+      </div>
+      <p class="hint">一局比赛 = 环节一 捕捉 45 秒 ×2 人 → 环节二 养成 50 秒 ×2 人 → 环节三 对战</p>
+    </div>
+  </div>
+
+  <!-- ===== 操作说明 ===== -->
+  <div id="scr-help" class="screen">
+    <div class="help-wrap panel">
+      <h3>操作说明</h3>
+      <h4>环节一 · 捕捉（每位玩家 45 秒）</h4>
+      <p class="help-note">
+        点击鼠标左键（或按 <i class="key">空格</i>）开始<b>精灵抽奖</b>，抽奖转盘会滚动精灵，停下后决定你要捕捉的对象。<br>
+        抽奖结束后进入<b>判定</b>：进度条上有一段橙色判定条与一根来回移动的判定线。在判定线位于判定条内时点击鼠标左键，即可为捕捉进度 <b>+25%～30%</b>。<br>
+        每只精灵共判定 <b>4 次</b>，判定条的长度每次随机变化（占整条进度条的 <b>10%～20%</b>）。4 次判定后捕捉进度达到 100% 即捕捉成功；不足 100%（只要有一次点空）即捕捉失败，失败后重新抽奖再捕。<br>
+        本环节上限捕捉 <b>3 只</b>精灵。结束时，<b>你捕捉到的精灵数量 = 你在环节三的体力值</b>，所以请尽量多抓。
+      </p>
+      <h4>环节二 · 养成（每位玩家 50 秒）</h4>
+      <p class="help-note">
+        每位玩家获得 <b>1000 点经验值</b>，可以自由决定给哪只精灵升级、升几级。<br>
+        精灵最高 <b>5 级</b>。升级消耗经验：1→2 级 <b>205</b>，2→3 级 <b>235</b>，3→4 级 <b>265</b>，4→5 级 <b>295</b>（每级递增 30）。<br>
+        每只精灵都有一条<b>经验条</b>记录它的等级。经验条左侧的 <b>−</b> 按钮可<b>回退一级</b>（返还该级消耗的经验），右侧的 <b>+</b> 按钮用于<b>升级</b>（经验不足时会变灰）。<br>
+        每升一级，精灵的<b>血量与攻击力各 +5</b>。环节结束时剩余经验作废。
+      </p>
+      <h4>环节三 · 对战（直至一方获胜）</h4>
+      <p class="help-note">
+        双方用自己捕捉并养成的精灵轮流出手。每位玩家的体力 = 自己捕捉到的精灵数（最多 3）。<br>
+        · 一只精灵血量清零 → 该玩家扣 <b>1 点体力</b>，并自动换下一只精灵上场。<br>
+        · 体力清零 → 该玩家落败，本局比赛结束。<br>
+        操作：<i class="key">A</i> 普通攻击　<i class="key">S</i> 猛击（1.6 倍伤害，25% 落空）　<i class="key">D</i> 换精灵　<i class="key">1</i><i class="key">2</i><i class="key">3</i> 直接换上对应精灵；也可以直接点鼠标按钮。
+      </p>
+      <h4>通用操作</h4>
+      <p class="help-note">
+        <i class="key">空格</i> 环节一的抽奖 / 判定点击　·　<i class="key">鼠标左键</i> 环节一的抽奖 / 判定点击、各环节按钮<br>
+        每局结束后点击「重新开始一局」即可重置全部数据；「返回主菜单」回到标题界面。
+      </p>
+      <div class="menu-btns" style="margin-top:18px">
+        <button class="btn primary" data-act="backmenu">返回</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 环节一：捕捉 ===== -->
+  <div id="scr-catch" class="screen">
+    <div id="hud">
+      <div id="hudL"></div>
+      <div class="hud-mid">
+        <div class="stagebar" id="catchStage"></div>
+        <div id="msg">点击抽奖</div>
+        <div class="hud-btns">
+          <button class="btn" data-act="draw">抽奖 / 判定</button>
+          <button class="btn" data-act="endcatch">结束捕捉</button>
+        </div>
+      </div>
+      <div id="hudR"></div>
+    </div>
+    <div id="stage"><canvas id="cv" width="900" height="520"></canvas></div>
+  </div>
+
+  <!-- ===== 环节二：养成 ===== -->
+  <div id="scr-level" class="screen"><div id="levelbody"></div></div>
+
+  <!-- ===== 环节三：对战 ===== -->
+  <div id="scr-battle" class="screen"><div id="battlebody"></div></div>
+
+  <!-- ===== 结算 ===== -->
+  <div id="scr-over" class="screen">
+    <div class="menu-inner">
+      <h2 id="overTitle">本局结束</h2>
+      <p class="sub" id="overSub" style="letter-spacing:2px"></p>
+      <div class="menu-btns">
+        <button class="btn primary big" data-act="restart">重新开始一局</button>
+        <button class="btn big" data-act="menu">返回主菜单</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ==================================================================
+   0. 常量与工具
+   ================================================================== */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+const rnd = (a,b)=>a+Math.random()*(b-a);
+const ri  = (a,b)=>Math.floor(rnd(a,b+1));
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+
+const W=900, H=520;
+const MAX_TEAM   = 3;      // 环节一最多捕捉 3 只
+const CATCH_TIME = 45;     // 环节一限时（秒）
+const LEVEL_TIME = 50;     // 环节二限时（秒）
+const START_EXP  = 1000;   // 每位玩家的经验值
+const MAX_LV     = 5;      // 精灵等级上限
+const LV_GAIN    = 5;      // 每升一级 血量/攻击 各 +5
+const LV_EXP     = lv=>205+(lv-1)*30;   // 1→2:205 2→3:235 3→4:265 4→5:295（每级递增 30）
+
+const JUDGE_TIMES = 4;     // 每只精灵判定次数
+const JUDGE_GAIN  = [25,30];  // 单次判定成功增加的捕捉进度(%)
+const WIN_MIN=0.10, WIN_MAX=0.20;   // 判定条占进度条长度的比例
+const LINE_SPEED = 300;    // 判定线移动速度(px/s) —— 「略微降低精灵移动速度」调这里
+const REEL_SPEED = 520;    // 抽奖转盘精灵滚动速度(px/s)
+const BAR_X=110, BAR_Y=300, BAR_W=680, BAR_H=40;
+
+/* ==================================================================
+   1. 像素精灵数据（12×12 点阵 . 透明 / 0 描边 / 1 主色 / 2 高光 / 3 暗色 / p 瞳孔）
+   ================================================================== */
+const SPECIES=[
+  { key:"leaf", name:"叶芽兽", star:1, w:20, base:{hp:40,atk:18},
+    pal:{"0":"#12351f","1":"#4ec24e","2":"#9ff28a","3":"#2b8f3c","p":"#0d1f14"},
+    map:["....0..0....","...020.020..","..00110110..","..01111110..",".0111111110.",".01p1111p10.",
+         ".0111111110.",".0113223110.","..01111110..","..01111110..","..0.1111.0..","...00..00..."] },
+  { key:"water", name:"水滴灵", star:1, w:20, base:{hp:46,atk:16},
+    pal:{"0":"#0e2a48","1":"#3aa8ff","2":"#b8e6ff","3":"#1f6fd0","p":"#06192b"},
+    map:[".....00.....","....0210....","...011110...","..01111110..",".0111111110.",".01p1111p10.",
+         ".0111111110.",".0112222110.","..01111110..","..01111110..","..0.1111.0..","...00..00..."] },
+  { key:"fire", name:"火尾狐", star:2, w:16, base:{hp:36,atk:22},
+    pal:{"0":"#4a1a0d","1":"#ff7a2f","2":"#ffd166","3":"#e03a1a","p":"#2b0d06"},
+    map:["..0......0..",".010....010.",".0110..0110.","..01111110..",".0111111110.",".01p1111p10.",
+         ".0111111110.",".0113223110.","..01111110..","..01111110..","..0.1111.0..","...00..00..."] },
+  { key:"rock", name:"岩甲龟", star:2, w:14, base:{hp:52,atk:15},
+    pal:{"0":"#3a2a1c","1":"#c9a06a","2":"#f0d9a8","3":"#8a6a44","p":"#241812"},
+    map:[".....00.....","..00000000..",".0333333330.",".0313313310.",".0333333330.",".03p3333p30.",
+         ".0313313310.",".0333333330.","..03333330..","..01111110..","..0.1111.0..","...00..00..."] },
+  { key:"elec", name:"电光鼠", star:3, w:12, base:{hp:34,atk:26},
+    pal:{"0":"#4a3a00","1":"#ffe23d","2":"#fff9c4","3":"#ffa726","p":"#2b2000"},
+    map:[".0........0.",".010....010.",".0110..0110.","..01111110..",".0111111110.",".01p1111p10.",
+         ".0111111110.",".0131113110.","..01111110..","..01111110..",".00.1111.00.","...00..00..."] },
+  { key:"ghost", name:"幽影蝠", star:3, w:8, base:{hp:44,atk:21},
+    pal:{"0":"#2a1a3f","1":"#a97cff","2":"#e0d0ff","3":"#6b3fd0","p":"#140a22"},
+    map:["..0......0..",".010....010.",".0110..0110.","003111111300","011111111110","011p1111p110",
+         "011111111110","001131131100","..01111110..","..01111110..","..0.1111.0..","...00..00..."] }
+];
+
+/* ==================================================================
+   2. 画布与像素绘制
+   ================================================================== */
+const cv=$("#cv"), ctx=cv.getContext("2d");
+ctx.imageSmoothingEnabled=false;
+
+function drawPixels(g,map,pal,px,py,scale,flip){
+  for(let r=0;r<map.length;r++){
+    const row=map[r];
+    for(let c=0;c<row.length;c++){
+      const ch=row[c]; if(ch===".")continue;
+      const col=pal[ch]; if(!col)continue;
+      const cc=flip?(row.length-1-c):c;
+      g.fillStyle=col; g.fillRect(px+cc*scale,py+r*scale,scale,scale);
+    }
+  }
+}
+function makeIcon(spIdx,size){
+  const c=document.createElement("canvas"), s=4;
+  c.width=12*s; c.height=12*s;
+  const g=c.getContext("2d"); g.imageSmoothingEnabled=false;
+  const sp=SPECIES[spIdx];
+  drawPixels(g,sp.map,sp.pal,0,0,s,false);
+  c.style.width=size+"px"; c.style.height=size+"px";
+  return c;
+}
+/* canvas 无法通过 innerHTML 还原像素：先用占位符，插入 DOM 后再替换 */
+function iconHTML(sp,size){ return '<span data-icon="'+sp+':'+size+'"></span>'; }
+function hydrateIcons(root){
+  root.querySelectorAll("[data-icon]").forEach(el=>{
+    const p=el.dataset.icon.split(":");
+    el.replaceWith(makeIcon(parseInt(p[0]),parseInt(p[1])));
+  });
+}
+function starStr(n){ return "★".repeat(n)+"☆".repeat(3-n); }
+
+/* ==================================================================
+   3. 状态
+   ================================================================== */
+const G={
+  screen:"menu",
+  players:[],
+  queue:[], qi:0,          // 比赛流程队列
+  timer:0,
+  msg:"", msgT:0,
+  catch:null, pvp:null,
+  t:0, over:false
+};
+const keys={};
+
+function makePlayer(i){
+  return { id:i, name:"玩家"+(i+1), team:[], caught:0, exp:0 };
+}
+function makeMonster(sp,lv){
+  const b=SPECIES[sp].base;
+  lv=lv||1;
+  const m={ sp, name:SPECIES[sp].name, star:SPECIES[sp].star, lv,
+            maxHp:b.hp+(lv-1)*LV_GAIN, atk:b.atk+(lv-1)*LV_GAIN };
+  m.hp=m.maxHp;
+  return m;
+}
+function pickSpecies(){
+  const total=SPECIES.reduce((s,x)=>s+x.w,0);
+  let r=Math.random()*total;
+  for(let i=0;i<SPECIES.length;i++){ r-=SPECIES[i].w; if(r<=0) return i; }
+  return SPECIES.length-1;
+}
+
+/* ==================================================================
+   4. 屏幕 / 公共 UI
+   ================================================================== */
+function showScreen(name){
+  G.screen=name;
+  $$(".screen").forEach(s=>s.classList.remove("active"));
+  $("#scr-"+name).classList.add("active");
+}
+function setMsg(t){ G.msg=t; G.msgT=4; const m=$("#msg")||$("#lvmsg"); if(m) m.textContent=t; }
+function heartRow(n){
+  let s='<div class="hearts">';
+  for(let i=0;i<n;i++) s+='<span class="heart"></span>';
+  if(!n) s+='<span class="heart off"></span>';
+  return s+"</div>";
+}
+function teamIcons(p){
+  if(!p.team.length) return '<span style="font-size:11px;color:var(--dim)">暂无精灵</span>';
+  return p.team.map(m=>'<div class="tmini">'+iconHTML(m.sp,30)+'<span class="lv">'+m.lv+'</span></div>').join("");
+}
+function playerCard(p,active){
+  return `<div class="pcard ${p.id===0?"p1":"p2"}${active?" active":""}">
+      <div class="prow"><span class="pname">${p.name}</span>
+        <span class="tag">${active?"当前回合":"等待中"}</span></div>
+      <div class="prow small"><span>已捕捉 <b>${p.caught}</b> / ${MAX_TEAM}</span>
+        <span>体力 <b>${p.caught}</b></span></div>
+      <div class="team">${teamIcons(p)}</div>
+    </div>`;
+}
+function renderCatchHud(){
+  const me=G.players[G.catch.p], other=G.players[1-G.catch.p];
+  const hl=$("#hudL"), hr=$("#hudR");
+  hl.innerHTML=playerCard(me,true);
+  hr.innerHTML=playerCard(other,false);
+  hydrateIcons(hl); hydrateIcons(hr);
+  $("#catchStage").innerHTML=
+    `<b>环节一 · 捕捉</b> ｜ ${me.name} 回合 ｜ 剩余 <b style="color:var(--warn)">${Math.max(0,G.timer).toFixed(1)}s</b>`;
+  const b=$('[data-act="draw"]');
+  if(b) b.textContent = G.catch.sub==="ready" ? "开始抽奖" : G.catch.sub==="roll" ? "抽奖中…" : "判定点击";
+}
+
+/* ==================================================================
+   5. 比赛流程：环节一 → 环节二 → 环节三
+   ================================================================== */
+function newMatch(){
+  G.players=[makePlayer(0),makePlayer(1)];
+  G.queue=[
+    {kind:"catch", p:0},
+    {kind:"catch", p:1},
+    {kind:"level", p:0},
+    {kind:"level", p:1},
+    {kind:"battle"}
+  ];
+  G.qi=0; G.over=false;
+  startStage();
+}
+function startStage(){
+  const st=G.queue[G.qi];
+  if(!st){ return; }
+  if(st.kind==="catch"){
+    G.timer=CATCH_TIME;
+    catchInit(st.p);
+    showScreen("catch");
+    setMsg(`${G.players[st.p].name} 的捕捉回合：点击抽奖，判定线进入判定条时点击`);
+  }else if(st.kind==="level"){
+    G.timer=LEVEL_TIME;
+    const p=G.players[st.p];
+    p.exp=START_EXP;
+    showScreen("level"); renderLevel();
+    setMsg(`${p.name} 的养成回合：用 1000 经验给精灵升级`);
+  }else{
+    battleInit();
+    showScreen("battle"); renderBattle();
+  }
+}
+function nextStage(){ G.qi++; startStage(); }
+function stageLabel(){
+  const st=G.queue[G.qi];
+  if(!st) return "";
+  if(st.kind==="catch") return `环节一 · 捕捉（${G.players[st.p].name}）`;
+  if(st.kind==="level") return `环节二 · 养成（${G.players[st.p].name}）`;
+  return "环节三 · 对战";
+}
+
+/* ==================================================================
+   6. 环节一：抽奖 + 判定捕捉
+   ================================================================== */
+function catchInit(p){
+  G.catch={ p, sub:"ready", target:null, prog:0, round:0, hits:0,
+            line:0, dir:1, winStart:0, winLen:0, rollT:0, reel:0, flash:0, pop:0, texts:[] };
+  renderCatchHud();
+}
+function catchDraw(){                       // 开始抽奖
+  const C=G.catch; if(!C||C.sub!=="ready") return;
+  C.sub="roll"; C.rollT=0; C.reel=0; C.target=pickSpecies();
+  setMsg("抽奖中……"); renderCatchHud();
+}
+function catchJudgeClick(){                 // 判定点击
+  const C=G.catch; if(!C||C.sub!=="judge") return;
+  const x=C.line;
+  const hit = x>=C.winStart && x<=C.winStart+C.winLen;
+  if(hit){
+    const gain=Math.round(rnd(JUDGE_GAIN[0],JUDGE_GAIN[1]));
+    C.prog+=gain; C.hits++;
+    C.texts.push({x:BAR_X+x,y:BAR_Y-14,t:"+"+gain+"%",c:"#ffe066",life:1});
+    C.flash=1;
+  }else{
+    C.texts.push({x:BAR_X+x,y:BAR_Y-14,t:"MISS",c:"#ff8080",life:1});
+    C.flash=-1;
+  }
+  C.round++;
+  if(C.round>=JUDGE_TIMES) resolveCatch();
+  else newWindow();
+  renderCatchHud();
+}
+function newWindow(){                        // 生成新的判定条（长度 10%~20%，位置随机）
+  const C=G.catch;
+  C.winLen=Math.round(BAR_W*rnd(WIN_MIN,WIN_MAX));
+  C.winStart=Math.round(rnd(0,BAR_W-C.winLen));
+}
+function resolveCatch(){                     // 4 次判定结束
+  const C=G.catch, p=G.players[C.p];
+  if(C.prog>=100){
+    C.sub="win"; C.pop=0;
+    const m=makeMonster(C.target,1);
+    p.team.push(m); p.caught=p.team.length;
+    setMsg(`捕捉成功！${m.name} ${starStr(m.star)} 加入 ${p.name} 的队伍（进度 ${Math.min(100,Math.round(C.prog))}%）`);
+    if(p.team.length>=MAX_TEAM){
+      C.sub="win";
+      setTimeout(()=>{ if(G.screen==="catch"&&G.catch===C) endCatch(); },1400);
+    }else{
+      setTimeout(()=>{ if(G.screen==="catch"&&G.catch===C&&C.sub==="win"){ C.sub="ready"; C.prog=0; C.round=0; renderCatchHud(); } },1400);
+    }
+  }else{
+    C.sub="lose";
+    setMsg(`捕捉失败：4 次判定后进度仅 ${Math.min(100,Math.round(C.prog))}%（需 100%），重新抽奖再试`);
+    setTimeout(()=>{ if(G.screen==="catch"&&G.catch===C&&C.sub==="lose"){ C.sub="ready"; C.prog=0; C.round=0; renderCatchHud(); } },1400);
+  }
+  renderCatchHud();
+}
+function endCatch(){
+  const p=G.players[G.catch.p];
+  setMsg(`${p.name} 捕捉结束：共捕捉 ${p.caught} 只精灵，环节三体力 = ${p.caught}`);
+  G.catch=null;
+  nextStage();
+}
+function updateCatch(dt){
+  const C=G.catch; if(!C) return;
+  const f=dt*60;
+  if(C.sub==="roll"){
+    C.reel+=REEL_SPEED*dt; C.rollT+=dt;
+    if(C.rollT>=1.1){ C.sub="judge"; C.prog=0; C.round=0; C.line=BAR_W/2; C.dir=1; newWindow(); renderCatchHud(); }
+  }else if(C.sub==="judge"){
+    C.line+=C.dir*LINE_SPEED*dt;
+    if(C.line>=BAR_W){ C.line=BAR_W; C.dir=-1; }
+    if(C.line<=0){ C.line=0; C.dir=1; }
+  }else if(C.sub==="win"){
+    C.pop+=dt;
+  }
+  if(C.flash>0) C.flash-=f/18; else if(C.flash<0) C.flash+=f/18;
+  for(let i=C.texts.length-1;i>=0;i--){ const t=C.texts[i]; t.life-=dt; t.y-=f*0.5; if(t.life<=0) C.texts.splice(i,1); }
+  if(G.msgT>0) G.msgT-=dt;
+}
+function drawCatch(){
+  const C=G.catch;
+  // 背景 + 网格
+  ctx.fillStyle="#0b1020"; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle="rgba(74,134,255,.07)"; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=30){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=30){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  if(!C) return;
+
+  // 抽奖转盘
+  const reelCY=150, frameW=150, frameH=132;
+  ctx.fillStyle="rgba(5,7,15,.55)"; ctx.fillRect(60,reelCY-frameH/2-8,W-120,frameH+16);
+  if(C.sub==="roll"){
+    const step=110, loopW=SPECIES.length*step;
+    const off=C.reel%loopW;
+    for(let k=-1;k<Math.ceil((W-120)/step)+2;k++){
+      const idx=((k%SPECIES.length)+SPECIES.length)%SPECIES.length;
+      const x=60+ (k*step-off) + 26;          // 26 = 半格居中偏移
+      if(x<-60||x>W+40) continue;
+      const sx=SPECIES[idx];
+      ctx.globalAlpha=.75;
+      drawPixels(ctx,sx.map,sx.pal,x,reelCY-24,4,false);
+      ctx.globalAlpha=1;
+    }
+    // 中央高亮框
+    ctx.strokeStyle="#ffd23f"; ctx.lineWidth=3;
+    ctx.strokeRect(W/2-frameW/2,reelCY-frameH/2,frameW,frameH);
+  }else{
+    // 停下：只显示抽中的精灵
+    ctx.globalAlpha=.18;
+    SPECIES.forEach((sx,i)=>{
+      const x=W/2+(i-2.5)*110;
+      drawPixels(ctx,sx.map,sx.pal,x-24,reelCY-24,4,false);
+    });
+    ctx.globalAlpha=1;
+    if(C.target!==null){
+      const sx=SPECIES[C.target];
+      const pop=C.sub==="win" ? Math.min(1,C.pop*3) : 1;
+      const sc=4 + Math.sin(Math.min(1,pop)*Math.PI)*1.2;
+      const size=12*sc;
+      ctx.fillStyle="rgba(255,210,63,"+(0.10+0.12*Math.abs(Math.sin(G.t*4)))+")";
+      ctx.fillRect(W/2-frameW/2,reelCY-frameH/2,frameW,frameH);
+      drawPixels(ctx,sx.map,sx.pal,W/2-size/2,reelCY-size/2,sc,false);
+      ctx.strokeStyle=C.sub==="win"?"#43d17a":"#ffd23f"; ctx.lineWidth=3;
+      ctx.strokeRect(W/2-frameW/2,reelCY-frameH/2,frameW,frameH);
+      ctx.textAlign="center";
+      ctx.font="bold 16px 'Courier New',monospace";
+      ctx.fillStyle="#fff"; ctx.fillText(sx.name,W/2,reelCY+frameH/2+24);
+      ctx.font="13px 'Courier New',monospace"; ctx.fillStyle="#ffd23f";
+      ctx.fillText(starStr(sx.star)+"  1级  HP "+sx.base.hp+"  ATK "+sx.base.atk,W/2,reelCY+frameH/2+44);
+    }
+  }
+
+  // 状态提示
+  ctx.textAlign="center"; ctx.font="bold 17px 'Courier New',monospace";
+  ctx.fillStyle="#e9edff";
+  const tip = C.sub==="ready" ? "点击鼠标左键 / 空格 开始抽奖"
+            : C.sub==="roll"  ? "抽奖中……"
+            : C.sub==="judge" ? ("第 "+Math.min(C.round+1,JUDGE_TIMES)+" / "+JUDGE_TIMES+" 次判定：判定线进入橙色判定条时点击！")
+            : C.sub==="win"   ? "捕捉成功！"
+            : "捕捉失败，重新抽奖";
+  ctx.fillText(tip,W/2,262);
+
+  // 进度条
+  ctx.fillStyle="#05070f";
+  ctx.fillRect(BAR_X-4,BAR_Y-4,BAR_W+8,BAR_H+8);
+  ctx.fillStyle="#0e1428"; ctx.fillRect(BAR_X,BAR_Y,BAR_W,BAR_H);
+  // 已获得进度
+  const pr=clamp(C.prog/100,0,1);
+  ctx.fillStyle="#2b8f3c"; ctx.fillRect(BAR_X,BAR_Y,BAR_W*pr,BAR_H);
+  ctx.fillStyle="#43d17a"; ctx.fillRect(BAR_X,BAR_Y,BAR_W*pr,4);
+  // 判定条
+  if(C.sub==="judge"){
+    const a=0.35+0.35*Math.abs(Math.sin(G.t*5));
+    ctx.fillStyle="rgba(255,171,61,"+a+")";
+    ctx.fillRect(BAR_X+C.winStart,BAR_Y,C.winLen,BAR_H);
+    ctx.fillStyle="#ffab3d";
+    ctx.fillRect(BAR_X+C.winStart,BAR_Y,3,BAR_H);
+    ctx.fillRect(BAR_X+C.winStart+C.winLen-3,BAR_Y,3,BAR_H);
+  }
+  // 判定线
+  if(C.sub==="judge"){
+    const lx=BAR_X+Math.round(C.line);
+    ctx.fillStyle="rgba(255,255,255,.25)"; ctx.fillRect(lx-6,BAR_Y-8,12,BAR_H+16);
+    ctx.fillStyle="#ffffff"; ctx.fillRect(lx-2,BAR_Y-10,4,BAR_H+20);
+  }
+  // 闪白/闪红
+  if(C.flash>0.01){ ctx.fillStyle="rgba(67,209,122,"+C.flash*0.4+")"; ctx.fillRect(BAR_X,BAR_Y,BAR_W,BAR_H); }
+  if(C.flash<-0.01){ ctx.fillStyle="rgba(255,92,92,"+(-C.flash)*0.4+")"; ctx.fillRect(BAR_X,BAR_Y,BAR_W,BAR_H); }
+  // 数值
+  ctx.font="bold 15px 'Courier New',monospace";
+  ctx.fillStyle="#e9edff"; ctx.textAlign="left";
+  ctx.fillText("捕捉进度 "+Math.min(100,Math.round(C.prog))+"%",BAR_X,BAR_Y-14);
+  ctx.textAlign="right";
+  ctx.fillStyle="#8d97c4";
+  ctx.fillText("判定 "+Math.min(C.round,JUDGE_TIMES)+" / "+JUDGE_TIMES+"　（判定条长度 "+Math.round(C.winLen/BAR_W*100)+"%）",BAR_X+BAR_W,BAR_Y-14);
+  ctx.textAlign="center";
+  ctx.fillStyle="#8d97c4"; ctx.font="12px 'Courier New',monospace";
+  ctx.fillText("每只精灵需判定 4 次，进度满 100% 才算捕捉成功",W/2,BAR_Y+BAR_H+26);
+
+  // 漂字
+  ctx.font="bold 15px 'Courier New',monospace";
+  C.texts.forEach(t=>{
+    ctx.globalAlpha=clamp(t.life,0,1);
+    ctx.fillStyle="#05070f"; ctx.fillText(t.t,t.x+2,t.y+2);
+    ctx.fillStyle=t.c; ctx.fillText(t.t,t.x,t.y);
+    ctx.globalAlpha=1;
+  });
+
+  // 底部提示
+  if(G.msgT>0){
+    ctx.font="13px 'Courier New',monospace"; ctx.textAlign="center";
+    const tw=ctx.measureText(G.msg).width;
+    ctx.fillStyle="rgba(5,7,15,.85)"; ctx.fillRect(W/2-tw/2-14,H-46,tw+28,28);
+    ctx.fillStyle="#e9edff"; ctx.fillText(G.msg,W/2,H-27);
+  }
+}
+
+/* ==================================================================
+   7. 环节二：养成
+   ================================================================== */
+function renderLevel(){
+  const st=G.queue[G.qi];
+  const p=G.players[st.p];
+  const other=G.players[1-st.p];
+  const used=START_EXP-p.exp;
+  const rows=p.team.map((m,i)=>{
+    const maxed=m.lv>=MAX_LV;
+    const cost=maxed?0:LV_EXP(m.lv);
+    const refund=m.lv<=1?0:LV_EXP(m.lv-1);
+    const segs=Array.from({length:MAX_LV},(_,k)=>`<i class="${k<m.lv?"on":""}"></i>`).join("");
+    const hint = maxed ? '<b style="color:var(--coin)">已达最高等级</b>'
+      : (p.exp<cost ? '升级到 Lv.'+(m.lv+1)+' 需 <b style="color:var(--coin)">'+cost+'</b> 经验（不足）'
+                    : '升级到 Lv.'+(m.lv+1)+' 需 <b style="color:var(--coin)">'+cost+'</b> 经验');
+    return `<div class="trow">
+      <div>${iconHTML(m.sp,46)}</div>
+      <div class="tname">${m.name} <small>${starStr(m.star)}</small>
+        <small style="display:block;margin-top:5px">等级 Lv.${m.lv} / ${MAX_LV}</small></div>
+      <div class="lvbar">
+        <button class="sq" data-down="${i}" ${m.lv<=1?"disabled":""} title="回退一级，返还 ${refund} 经验">−</button>
+        <div class="lvsegs">${segs}</div>
+        <button class="sq" data-up="${i}" ${(maxed||p.exp<cost)?"disabled":""} title="升级，需要 ${cost} 经验">+</button>
+      </div>
+      <div class="stat">血量 <b>${m.maxHp}</b>　攻击 <b>${m.atk}</b><br>
+        <span style="font-size:11px">${hint}</span></div>
+    </div>`;
+  }).join("")||'<div style="color:var(--dim);font-size:13px;padding:10px">本环节没有精灵可以养成（你在捕捉环节没有抓到精灵）。</div>';
+
+  $("#levelbody").innerHTML=`
+    <div class="lv-head panel">
+      <span class="t">环节二 · 养成 ｜ ${p.name} 回合</span>
+      <span class="timer">剩余 ${Math.max(0,G.timer).toFixed(1)}s</span>
+      <span class="exp">剩余经验 <b>${p.exp}</b> ／ 已用 ${used} / ${START_EXP}</span>
+      <button class="btn primary" data-act="endlv">结束养成</button>
+    </div>
+    <div class="bar" style="height:18px"><i class="${p.exp>300?"":"mid"}" style="width:${used/START_EXP*100}%"></i></div>
+    <div id="lvmsg" class="lvmsg">${G.msgT>0&&G.msg?G.msg:'点「+」升级、点「−」回退：经验与属性会立即更新'}</div>
+    <div class="lv-list">${rows}</div>
+    <div class="lv-tip">
+      规则：精灵最高 ${MAX_LV} 级；1→2 级需 205 经验，之后每升一级所需经验 +30（235 / 265 / 295）；每升一级血量与攻击力同步 +5。<br>
+      经验条左侧「−」= 回退一级并返还该级经验（最低 Lv.1），右侧「+」= 升级（经验不足或已达 5 级时不可点）。<br>
+      对手（${other.name}）已捕捉 ${other.caught} 只精灵。本环节剩余经验在结束后作废。
+    </div>`;
+  hydrateIcons($("#levelbody"));
+}
+function levelUp(i){
+  const st=G.queue[G.qi], p=G.players[st.p], m=p.team[i];
+  if(m.lv>=MAX_LV) return;
+  const cost=LV_EXP(m.lv);
+  if(p.exp<cost) return;
+  p.exp-=cost; m.lv++;
+  m.maxHp+=LV_GAIN; m.atk+=LV_GAIN; m.hp=m.maxHp;
+  setMsg(`${m.name} 升到 Lv.${m.lv}（血量 ${m.maxHp} / 攻击 ${m.atk}）`);
+  renderLevel();
+}
+function levelDown(i){                     // 回退一级并返还该级经验
+  const st=G.queue[G.qi], p=G.players[st.p], m=p.team[i];
+  if(m.lv<=1) return;
+  const refund=LV_EXP(m.lv-1);
+  p.exp+=refund; m.lv--;
+  m.maxHp-=LV_GAIN; m.atk-=LV_GAIN; m.hp=m.maxHp;
+  setMsg(`${m.name} 回退到 Lv.${m.lv}，返还 ${refund} 经验（血量 ${m.maxHp} / 攻击 ${m.atk}）`);
+  renderLevel();
+}
+
+/* ==================================================================
+   8. 环节三：玩家对战
+   ================================================================== */
+function battleInit(){
+  // 复制一份，按捕捉数量作为体力值
+  const teams=[0,1].map(i=>G.players[i].team.map(m=>({
+    sp:m.sp, name:m.name, star:m.star, lv:m.lv, maxHp:m.maxHp, atk:m.atk, hp:m.maxHp
+  })));
+  G.pvp={ teams, st:[teams[0].length, teams[1].length], act:[0,0], turn:0, log:[], over:false };
+  blog("环节三 · 对战开始！每位玩家的体力 = 自己捕捉到的精灵数。","sys");
+  blog(`玩家1：${teams[0].length} 只 ｜ 玩家2：${teams[1].length} 只`,"sys");
+  if(teams[0].length===0&&teams[1].length===0){
+    G.pvp.over=true;
+    blog("双方都没有捕捉到精灵，无法开战。","bad");
+    setTimeout(()=>gameOver("平局","双方都没有捕捉到精灵，本局无胜负"),900);
+    return;
+  }
+  if(teams[0].length===0||teams[1].length===0){
+    const w=teams[0].length===0?1:0;
+    blog(`玩家${(teams[0].length===0?0:1)+1} 没有捕捉到精灵，体力为 0，直接落败。`,"bad");
+    setTimeout(()=>endMatch(w),900);
+    return;
+  }
+  blog(`玩家1 派出 ${teams[0][0].name}，玩家2 派出 ${teams[1][0].name}`,"sys");
+}
+function blog(t,cls){ if(!G.pvp) return; G.pvp.log.push({t,cls}); if(G.pvp.log.length>80) G.pvp.log.shift(); }
+function dmgOf(a,d,mult){
+  return Math.max(1,Math.round(a.atk*(mult||1)*rnd(0.9,1.1)));
+}
+function battleAct(kind){
+  const s=G.pvp; if(!s||s.over) return;
+  const me=s.turn, foe=1-me;
+  const ma=s.teams[me][s.act[me]], fa=s.teams[foe][s.act[foe]];
+  if(kind==="strong"&&Math.random()<0.25){
+    blog(`玩家${me+1} 的 ${ma.name} 猛击落空！`,"bad");
+  }else{
+    const dmg=dmgOf(ma,fa,kind==="strong"?1.6:1);
+    fa.hp-=dmg; fa.flash=true;
+    blog(`玩家${me+1} 的 ${ma.name} ${kind==="strong"?"猛击":"攻击"} ${fa.name}，造成 ${dmg} 伤害`,"good");
+  }
+  if(fa.hp<=0){
+    fa.hp=0;
+    s.st[foe]=Math.max(0,s.st[foe]-1);
+    blog(`${fa.name} 血量清零 → 玩家${foe+1} 扣除 1 点体力（剩余 ${s.st[foe]}）`,"bad");
+    if(s.st[foe]<=0){ endMatch(me); return; }
+    const nx=s.teams[foe].findIndex((m,i)=>i!==s.act[foe]&&m.hp>0);
+    if(nx<0){ endMatch(me); return; }
+    s.act[foe]=nx;
+    blog(`玩家${foe+1} 派出 ${s.teams[foe][nx].name} Lv.${s.teams[foe][nx].lv}`,"sys");
+  }
+  s.turn=foe;
+  renderBattle();
+}
+function battleSwitch(i){
+  const s=G.pvp; if(!s||s.over) return;
+  const me=s.turn, m=s.teams[me][i];
+  if(!m||m.hp<=0||i===s.act[me]) return;
+  s.act[me]=i;
+  blog(`玩家${me+1} 换上 ${m.name} Lv.${m.lv}（消耗本回合）`,"sys");
+  s.turn=1-me;
+  renderBattle();
+}
+function endMatch(winner){
+  const s=G.pvp; if(!s||s.over) return;
+  s.over=true;
+  blog(`玩家${winner+1} 获胜！本局比赛结束。`,"sys");
+  renderBattle();
+  setTimeout(()=>{
+    gameOver(`玩家${winner+1} 获胜！`,
+      `对手体力清零。玩家1 捕捉 ${G.players[0].caught} 只 · 玩家2 捕捉 ${G.players[1].caught} 只`);
+  },600);
+}
+function gameOver(title,sub){
+  if(G.over) return;
+  G.over=true;
+  $("#overTitle").textContent=title;
+  $("#overSub").textContent=sub||"";
+  showScreen("over");
+}
+function barClass(r){ return r<0.25?"low":r<0.55?"mid":""; }
+function renderBattle(){
+  const s=G.pvp;
+  const side=i=>{
+    const m=s.teams[i][s.act[i]];
+    if(!m) return `<div class="fighter panel side${i+1}">
+      <div class="staminarow">${heartRow(s.st[i])}<span style="font-size:11px;color:var(--dim);margin-left:6px">体力 ${s.st[i]}</span></div>
+      <div class="fname">玩家${i+1} · 无精灵</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.9">该玩家在捕捉环节<br>没有捕捉到精灵</div>
+    </div>`;
+    const r=Math.max(0,m.hp/m.maxHp);
+    const bench=s.teams[i].map((x,j)=>
+      `<div class="rcard${j===s.act[i]?" sel":""}${x.hp<=0?" dead":""}" data-sw="${i}:${j}">
+        ${iconHTML(x.sp,34)}<div style="font-size:10px;color:var(--dim)">Lv.${x.lv}</div>
+        <div class="bar" style="height:6px;width:50px"><i class="${barClass(x.hp/x.maxHp)}" style="width:${Math.max(0,x.hp/x.maxHp)*100}%"></i></div>
+      </div>`).join("");
+    return `<div class="fighter panel side${i+1}">
+      <div class="staminarow">${heartRow(s.st[i])}<span style="font-size:11px;color:var(--dim);margin-left:6px">体力 ${s.st[i]}</span></div>
+      <div>${iconHTML(m.sp,96)}</div>
+      <div class="fname">玩家${i+1} · ${m.name} Lv.${m.lv}</div>
+      <div class="bar" style="width:170px"><i class="${barClass(r)}" style="width:${r*100}%"></i></div>
+      <div style="font-size:12px;color:var(--dim)">HP ${m.hp} / ${m.maxHp}　攻击 ${m.atk}</div>
+      <div class="bench">${bench}</div>
+      <div style="font-size:11px;color:var(--dim)">点击小图标换上（消耗本回合）</div>
+    </div>`;
+  };
+  const me=s.turn;
+  const acts = s.over ? '<div class="bt-actions"><span style="color:var(--warn)">本局比赛已结束</span></div>'
+    : `<div class="bt-actions">
+        <button class="btn primary" data-atk="1">普通攻击 (A)</button>
+        <button class="btn" data-strong="1">猛击 (S)</button>
+        <span style="font-size:12px;color:var(--dim)">按 D 可换精灵</span>
+      </div>`;
+  $("#battlebody").innerHTML=`
+    <div class="bt-head">
+      <h3>环节三 · 玩家对战</h3>
+      <span class="tag">体力 = 捕捉到的精灵数</span>
+    </div>
+    <div class="turnbar">${s.over?"对战结束":`轮到 玩家${me+1} 行动`}</div>
+    <div class="arena">
+      ${side(0)}
+      <div class="logbox" id="blogbox">${s.log.slice(-14).map(l=>`<div class="${l.cls}">${l.t}</div>`).join("")}</div>
+      ${side(1)}
+    </div>
+    ${acts}
+    <div class="logbox" style="height:32px">规则：精灵血量清零 → 该玩家扣 1 点体力；体力清零 → 该玩家落败，本局结束。</div>`;
+  hydrateIcons($("#battlebody"));
+  const lb=$("#blogbox"); if(lb) lb.scrollTop=9999;
+}
+
+/* ==================================================================
+   9. 主循环
+   ================================================================== */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  G.t+=dt;
+  if(G.over) { requestAnimationFrame(loop); return; }
+
+  if(G.screen==="catch"){
+    G.timer-=dt;
+    updateCatch(dt);
+    drawCatch();
+    $("#catchStage").innerHTML=
+      `<b>环节一 · 捕捉</b> ｜ ${G.players[G.catch?G.catch.p:0].name} 回合 ｜ 剩余 <b style="color:var(--warn)">${Math.max(0,G.timer).toFixed(1)}s</b>`;
+    if(G.timer<=0) endCatch();
+  }else if(G.screen==="level"){
+    G.timer-=dt;
+    const t=$(".lv-head .timer");
+    if(t) t.textContent="剩余 "+Math.max(0,G.timer).toFixed(1)+"s";
+    if(G.timer<=0){ const st=G.queue[G.qi]; setMsg(`${G.players[st.p].name} 的养成环节结束`); nextStage(); }
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ==================================================================
+   10. 输入
+   ================================================================== */
+function primaryAction(){
+  if(G.screen!=="catch"||!G.catch) return;
+  if(G.catch.sub==="ready") catchDraw();
+  else if(G.catch.sub==="judge") catchJudgeClick();
+}
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if([" ","arrowup","arrowdown","arrowleft","arrowright","tab"].includes(k)) e.preventDefault();
+  if(G.over) return;
+  if(k===" "||k==="enter"){ if(G.screen==="catch") primaryAction(); }
+  if(G.screen==="battle"&&G.pvp&&!G.pvp.over){
+    if(k==="a") battleAct("normal");
+    if(k==="s") battleAct("strong");
+    if(k==="d"){ const s=G.pvp; const nx=s.teams[s.turn].findIndex((m,i)=>i!==s.act[s.turn]&&m.hp>0); if(nx>=0) battleSwitch(nx); }
+    if(k==="1"||k==="2"||k==="3") battleSwitch(parseInt(k)-1);
+  }
+});
+addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
+
+cv.addEventListener("click",()=>{ if(G.screen==="catch") primaryAction(); });
+
+/* ==================================================================
+   11. 按钮
+   ================================================================== */
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act],[data-up],[data-down],[data-sw],[data-atk],[data-strong]");
+  if(!el) return;
+  const d=el.dataset;
+  if(d.act==="start"||d.act==="restart"){ newMatch(); }
+  else if(d.act==="help"){ showScreen("help"); }
+  else if(d.act==="backmenu"||d.act==="menu"){ G.over=false; showScreen("menu"); }
+  else if(d.act==="draw"){ primaryAction(); }
+  else if(d.act==="endcatch"){ if(G.screen==="catch"&&G.catch) endCatch(); }
+  else if(d.act==="endlv"){ if(G.screen==="level"){ const st=G.queue[G.qi]; setMsg(`${G.players[st.p].name} 的养成环节结束`); nextStage(); } }
+  else if(d.up!==undefined){ if(G.screen==="level") levelUp(parseInt(d.up)); }
+  else if(d.down!==undefined){ if(G.screen==="level") levelDown(parseInt(d.down)); }
+  else if(d.atk!==undefined){ battleAct("normal"); }
+  else if(d.strong!==undefined){ battleAct("strong"); }
+  else if(d.sw!==undefined){ const p=d.sw.split(":").map(Number); if(G.pvp&&p[0]===G.pvp.turn) battleSwitch(p[1]); }
+  else return;
+  if(el.tagName==="BUTTON") el.blur();   // 避免焦点残留导致空格/回车重复触发按钮
+});
+
+/* ==================================================================
+   12. 启动
+   ================================================================== */
+function fit(){
+  const s=Math.min(1,(innerWidth-20)/900,(innerHeight-20)/660);
+  $("#app").style.transform="scale("+Math.max(0.4,s)+")";
+}
+addEventListener("resize",fit);
+
+(function(){
+  const strip=$("#strip");
+  SPECIES.forEach((sp,i)=>{
+    const c=makeIcon(i,72);
+    c.style.animationDelay=(i*0.15)+"s";
+    strip.appendChild(c);
+  });
+})();
+
+G.players=[makePlayer(0),makePlayer(1)];
+fit();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

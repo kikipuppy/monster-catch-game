@@ -138,6 +138,69 @@ body{
 .rcard.sel{border-color:var(--accent);box-shadow:0 0 8px rgba(74,134,255,.5)}
 .rcard.dead{filter:grayscale(1) brightness(.45);cursor:not-allowed;opacity:.6}
 .bt-actions{display:flex;gap:10px;justify-content:center;align-items:center}
+/* ============ 手机竖屏 / 窄屏适配（≤760px）============ */
+@media (max-width:760px){
+  html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto;-webkit-text-size-adjust:100%}
+  body{display:block;padding-bottom:16px}
+  #app{width:100%!important;height:auto!important;padding:0 8px;transform:none!important}
+  .screen{position:static;inset:auto}
+  /* 主菜单 / 结算 */
+  .menu-inner{position:static;inset:auto;min-height:70vh;padding:24px 4px;gap:14px}
+  .menu-inner h1{font-size:40px;text-shadow:3px 3px 0 var(--accent),6px 6px 0 #05070f}
+  .menu-inner h2{font-size:26px}
+  .menu-inner .sub{font-size:13px;letter-spacing:3px}
+  .menu-btns{flex-wrap:wrap;justify-content:center}
+  .menu-btns .btn{font-size:15px;padding:12px 14px}
+  .sprite-strip{flex-wrap:wrap;justify-content:center}
+  .hint{font-size:11px;line-height:1.8}
+  /* 操作说明 */
+  .help-wrap{position:static;left:auto;top:auto;transform:none;width:auto;max-height:none;margin:10px 0;padding:16px 14px}
+  .help-grid{grid-template-columns:96px 1fr;font-size:12px}
+  /* 顶部条：两张玩家卡并排，信息栏独占一行 */
+  #hud{height:auto;grid-template-columns:1fr 1fr;grid-template-areas:"l r" "m m";gap:8px;padding:8px 0}
+  #hudL{grid-area:l}#hudR{grid-area:r}.hud-mid{grid-area:m}
+  .pcard{height:auto;padding:7px 8px;gap:5px}
+  .pcard .prow{font-size:12px;flex-wrap:wrap;gap:3px}
+  .pcard .prow.small{font-size:11px}
+  .pname{font-size:14px}
+  .tmini canvas{width:26px;height:26px}
+  .hud-mid #msg{min-height:42px;font-size:12px}
+  .hud-btns .btn{font-size:13px}
+  .stagebar{font-size:11px}
+  /* 画布随宽度自适应，判定条仍占满整宽 */
+  #stage{width:100%;height:auto}
+  #cv{width:100%;height:auto;display:block;touch-action:manipulation}
+  /* 养成环节 */
+  #levelbody{position:static;inset:auto;padding:10px 0}
+  .lv-head{flex-wrap:wrap;gap:8px;padding:9px 10px}
+  .lv-head .t{font-size:14px}
+  .lv-head .timer{font-size:16px}
+  .lv-head .exp{font-size:12px;width:100%}
+  .lv-head .btn{flex:1 1 100%}
+  .lv-list{gap:8px;overflow:visible}
+  .trow{grid-template-columns:46px 1fr;grid-template-areas:"ic nm" "bar bar" "st st";gap:8px 10px;padding:9px}
+  .trow>div:nth-child(1){grid-area:ic}
+  .trow>div:nth-child(2){grid-area:nm}
+  .trow>.lvbar{grid-area:bar;justify-content:space-between}
+  .trow>.stat{grid-area:st}
+  .trow canvas{width:40px;height:40px}
+  .lvmsg{min-height:32px;font-size:12px}
+  /* 对战环节：左右两栏改为上下堆叠 */
+  #battlebody{position:static;inset:auto;padding:10px 0}
+  .arena{grid-template-columns:1fr;gap:10px}
+  .fighter{padding:8px;gap:5px}
+  .fighter canvas.big{width:76px;height:76px}
+  .logbox{max-height:96px;overflow:auto}
+  .bt-head h3{font-size:16px}
+  .bt-actions{flex-wrap:wrap}
+  .bt-actions .btn{flex:1 1 40%}
+  /* 触控尺寸：按钮和加减号放大到手指可点 */
+  .btn{padding:11px 12px;font-size:13px;min-height:44px;touch-action:manipulation}
+  .btn.small{min-height:36px}
+  .sq{width:38px;height:38px;flex-basis:38px;font-size:21px}
+  .lvsegs i{width:20px;height:14px}
+  .rcard{width:auto;flex:1 1 0;min-width:0;padding:6px 4px}
+}
 </style>
 </head>
 <body>
@@ -185,6 +248,7 @@ body{
       <h4>通用操作</h4>
       <p class="help-note">
         <i class="key">空格</i> 环节一的抽奖 / 判定点击　·　<i class="key">鼠标左键</i> 环节一的抽奖 / 判定点击、各环节按钮<br>
+        手机 / 平板：界面会自动改为竖屏纵向布局，直接点击屏幕即可（判定点击 = 点画布任意位置），也可使用屏幕上的按钮，无需键盘。<br>
         每局结束后点击「重新开始一局」即可重置全部数据；「返回主菜单」回到标题界面。
       </p>
       <div class="menu-btns" style="margin-top:18px">
@@ -908,10 +972,15 @@ document.addEventListener("click",e=>{
    12. 启动
    ================================================================== */
 function fit(){
+  const app=$("#app");
+  if(narrowMQ.matches){ app.style.transform="none"; return; }   // 窄屏由 CSS 纵向重排，不整体缩放
   const s=Math.min(1,(innerWidth-20)/900,(innerHeight-20)/660);
-  $("#app").style.transform="scale("+Math.max(0.4,s)+")";
+  app.style.transform="scale("+Math.max(0.4,s)+")";
 }
+const narrowMQ=matchMedia("(max-width:760px)");
 addEventListener("resize",fit);
+addEventListener("orientationchange",fit);
+if(narrowMQ.addEventListener) narrowMQ.addEventListener("change",fit);
 
 (function(){
   const strip=$("#strip");
